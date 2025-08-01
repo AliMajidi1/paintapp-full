@@ -95,7 +95,6 @@ function App() {
     ));
   };
 
-  // Save drawing to backend
   const handleSave = async () => {
     if (!username) {
       alert("Please enter your username.");
@@ -122,7 +121,6 @@ function App() {
     setLoading(false);
   };
 
-  // Load drawings from backend
   const handleLoad = async () => {
     if (!username) {
       alert("Please enter your username.");
@@ -141,7 +139,6 @@ function App() {
     setLoading(false);
   };
 
-  // Load a selected drawing from the dialog
   const handleSelectSavedDrawing = (drawing) => {
     setDrawingName(drawing.data.drawingName || "Untitled Drawing");
     setShapes(drawing.data.shapes || []);
