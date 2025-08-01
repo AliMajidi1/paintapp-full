@@ -55,6 +55,10 @@ function App() {
   const [dragShape, setDragShape] = useState(null);
   const [dragMouse, setDragMouse] = useState(null);
   const [selectedShapeId, setSelectedShapeId] = useState(null);
+  const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [savedDrawings, setSavedDrawings] = useState([]);
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
   const fileInputRef = useRef();
 
   const handleAddShape = (type, x, y) => {
@@ -91,36 +95,57 @@ function App() {
     ));
   };
 
-  const handleExport = () => {
-    const data = {
-      drawingName,
-      shapes,
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${drawingName || "drawing"}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // Save drawing to backend
+  const handleSave = async () => {
+    if (!username) {
+      alert("Please enter your username.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("http://localhost:4000/api/drawings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          data: {
+            drawingName,
+            shapes,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save drawing");
+      alert("Drawing saved!");
+    } catch (e) {
+      alert("Error saving drawing.");
+    }
+    setLoading(false);
   };
 
-  const handleImport = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = JSON.parse(evt.target.result);
-        setDrawingName(data.drawingName || "Untitled Drawing");
-        setShapes(data.shapes || []);
-      } catch {
-        alert("Invalid file format.");
-      }
-    };
-    reader.readAsText(file);
+  // Load drawings from backend
+  const handleLoad = async () => {
+    if (!username) {
+      alert("Please enter your username.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`http://localhost:4000/api/drawings/${encodeURIComponent(username)}`);
+      if (!res.ok) throw new Error("Failed to load drawings");
+      const data = await res.json();
+      setSavedDrawings(data);
+      setShowLoadDialog(true);
+    } catch (e) {
+      alert("Error loading drawings.");
+    }
+    setLoading(false);
+  };
+
+  // Load a selected drawing from the dialog
+  const handleSelectSavedDrawing = (drawing) => {
+    setDrawingName(drawing.data.drawingName || "Untitled Drawing");
+    setShapes(drawing.data.shapes || []);
+    setShowLoadDialog(false);
   };
 
   const handleSidebarDragStart = (shapeType) => setDragShape(shapeType);
@@ -142,16 +167,46 @@ function App() {
       <Header
         drawingName={drawingName}
         setDrawingName={setDrawingName}
-        onExport={handleExport}
-        onImportClick={() => fileInputRef.current.click()}
       />
-      <input
-        type="file"
-        accept="application/json"
-        style={{ display: "none" }}
-        ref={fileInputRef}
-        onChange={handleImport}
-      />
+      <div style={{ display: "flex", alignItems: "center", gap: 16, margin: 16 }}>
+        <input
+          type="text"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+          placeholder="Username"
+          style={{ padding: 8, borderRadius: 4, border: "1px solid #ccc" }}
+        />
+        <button onClick={handleSave} disabled={loading}>
+          {loading ? "Saving..." : "Save"}
+        </button>
+        <button onClick={handleLoad} disabled={loading}>
+          {loading ? "Loading..." : "Load"}
+        </button>
+      </div>
+      {showLoadDialog && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+          background: "rgba(0,0,0,0.2)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center"
+        }}>
+          <div style={{ background: "#fff", padding: 24, borderRadius: 8, minWidth: 320 }}>
+            <h3>Saved Drawings</h3>
+            {savedDrawings.length === 0 && <div>No drawings found.</div>}
+            <ul style={{ maxHeight: 300, overflowY: "auto", padding: 0 }}>
+              {savedDrawings.map(d => (
+                <li key={d.id} style={{ margin: "8px 0", listStyle: "none" }}>
+                  <button
+                    style={{ width: "100%", textAlign: "left", padding: 8, border: "1px solid #ccc", borderRadius: 4 }}
+                    onClick={() => handleSelectSavedDrawing(d)}
+                  >
+                    {d.data.drawingName || "Untitled Drawing"} <span style={{ color: "#888", fontSize: 12 }}>({d.timestamp})</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button onClick={() => setShowLoadDialog(false)} style={{ marginTop: 12 }}>Close</button>
+          </div>
+        </div>
+      )}
       <div className="main-content">
         <Sidebar
           onDragStart={handleSidebarDragStart}
@@ -211,3 +266,4 @@ function App() {
 }
 
 export default App;
+
